@@ -1,0 +1,90 @@
+# -*- coding:UTF-8 -*-
+
+import requests,os
+import mkdir
+from lxml import etree
+
+headers={
+
+'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+'Accept-Encoding': 'gzip, deflate',
+'Accept-Language': 'zh-CN,zh;q=0.9',
+'Cache-Control': 'max-age=0',
+'Cookie': '__cfduid=da17defe2a3e54e1a77623cf187d616b71551328888; srcurl=687474703a2f2f7777772e7665676e65742e636f6d2e636e2f4d61726b65742f33382e68746d6c; security_session_mid_verify=6924ad2b5e4cd5d58dd7a1b58f05cb47; Hm_lvt_eda63048a2a5f2f971045c7b18e63a72=1551328890; bdshare_firstime=1551328890493; yjs_id=f41add37cc79ea01d2dc18c05c18cff9; ctrl_time=1; __utma=247588352.1914275425.1551328893.1551328893.1551328893.1; __utmc=247588352; __utmz=247588352.1551328893.1.1.utmcsr=(direct)|utmccn=(direct)|utmcmd=(none); __utmt=1; Hm_lpvt_eda63048a2a5f2f971045c7b18e63a72=1551329064; __utmb=247588352.2.10.1551328893; security_session_verify=933bfb051154035ac397d5fba3fc9c05',
+'Host': 'www.vegnet.com.cn',
+'Proxy-Connection': 'keep-alive',
+'Referer': 'http://www.vegnet.com.cn/Market/38.html',
+'Upgrade-Insecure-Requests': '1',
+'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36',
+
+}
+
+def price_list_to_text(url,file_name):
+    url_list=[]    #创建一个空列表
+    url_list.append(url)
+    res=requests.get(url,headers=headers)
+    html=etree.HTML(res.text)
+
+    name = html.xpath("//div[@class='skin_mar mar_list']/text()")[0]
+    path = os.getcwd() + '\\' + name.split('\n')[1] + '\\' + file_name + '.txt'
+    with open(path, 'a+', encoding='utf-8') as  f:
+        title = html.xpath("//div[@class='jxs_list price_l']/p/b[@class!='k_3']/text()")
+        for i in title[:-1]:
+            f.write(i + '   ')
+        f.write('\n')
+
+    parse(html, file_name,path)   #对于页面进行解析,html,file_name文件名,和路径的传递
+
+   #对页码的url进行抓取,迭代爬去
+    next_page = html.xpath("//div[@class='Pager']/a/@href")
+    for i in next_page:
+        i='http://www.vegnet.com.cn/'+i
+        if i not in url_list:
+            # print(i)
+            res = requests.get(i, headers=headers)
+            html = etree.HTML(res.text)
+            parse(html,file_name,path)
+            url_list.append(i)
+
+
+
+
+def parse(html,file_name,path):
+
+    #为每一个市场创建出相应的文件夹进行存取
+    name=html.xpath("//div[@class='skin_mar mar_list']/text()")[0]
+    mkdir.mkdir(name.split('\n')[1])
+    #对文件路径的一个拼接过程
+
+    path=os.getcwd()+'\\'+name.split('\n')[1]+'\\'+file_name+'.txt'
+    with open(path,'a+',encoding='utf-8') as  f:
+        price_list=html.xpath("//div[@class='jxs_list price_l']/div/p/span/text()")
+        count=0
+        for i in price_list:
+            if count%6==0:
+                f.write('\n')
+            f.write(i+'   ')
+            count=count+1
+
+
+#主要实现从批发市场主页抓取子页面的链接,对子页面的网页进行访问
+def vegnet_com_cn(url):
+    res=requests.get(url,headers=headers)
+    print(res)
+    html=etree.HTML(res.text)
+    info=html.xpath("//*[@id='NongHuaZhuanYongFei1']/li/a/span/text()")
+
+    next_url=html.xpath("//*[@id='NongHuaZhuanYongFei1']/li/a/@href")
+    for i,j in zip(next_url,info):
+        next_url='http://www.vegnet.com.cn'+i
+        print(next_url)
+        #进行子页面的抓取,在这里进行访问,函数存入txt文档中
+        price_list_to_text(next_url,j+'价格行情')
+
+if __name__=='__main__':
+    #   陕西咸阳新阳光批发市场
+    url = 'http://www.vegnet.com.cn/Market/38.html'
+    vegnet_com_cn(url)
+    # file_name='2019-1-14'
+    # url = 'http://www.vegnet.com.cn/Price/List?marketID=38&year=2019&month=1&day=14'
+    # price_list_to_text(url,file_name)
