@@ -3,7 +3,7 @@
 import requests,os
 import mkdir
 from lxml import etree
-
+import mongobe
 headers={
 
 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -27,13 +27,16 @@ def price_list_to_text(url,file_name):
 
     name = html.xpath("//div[@class='skin_mar mar_list']/text()")[0]
     path = os.getcwd() + '\\' + name.split('\n')[1] + '\\' + file_name + '.txt'
+    #下面代码为数据类别的爬去,日期,品种,价格等等
     with open(path, 'a+', encoding='utf-8') as  f:
         title = html.xpath("//div[@class='jxs_list price_l']/p/b[@class!='k_3']/text()")
         for i in title[:-1]:
             f.write(i + '   ')
         f.write('\n')
-
-    parse(html, file_name,path)   #对于页面进行解析,html,file_name文件名,和路径的传递
+     #插入数据库
+    insert_mongo(html)
+    # 存储到txt文本文档
+    parse_txt(html, file_name,path)
 
    #对页码的url进行抓取,迭代爬去
     next_page = html.xpath("//div[@class='Pager']/a/@href")
@@ -43,13 +46,36 @@ def price_list_to_text(url,file_name):
             # print(i)
             res = requests.get(i, headers=headers)
             html = etree.HTML(res.text)
-            parse(html,file_name,path)
+
+            insert_mongo(html)
+            parse_txt(html,file_name,path)
+
             url_list.append(i)
 
+def insert_mongo(html):
+    # name = html.xpath("//div[@class='skin_mar mar_list']/text()")[0]  #创建表的名字
+    name='yangguang'
+    db=mongobe.Mongo(name)
 
+    temp=[]
 
+    date = html.xpath('//div[@class="pri_k"]/p/span[1]/text()')
+    name1 = html.xpath('//div[@class="pri_k"]/p/span[2]/text()')
+    minprice = html.xpath('//div[@class="pri_k"]/p/span[4]/text()')
+    maxprice = html.xpath('//div[@class="pri_k"]/p/span[5]/text()')
+    price = html.xpath('//div[@class="pri_k"]/p/span[6]/text()')
 
-def parse(html,file_name,path):
+    for i in  range(len(date)):
+        item={}
+        item['日期'] = date[i]
+        item['品种'] = name1[i]
+        item['最低价格']=minprice[i]
+        item['最高价格']=maxprice[i]
+        item['平均价格']=price[i]
+        temp.append(item)
+    db.write(temp)
+#解析蔬菜价格数据,进行文本存储
+def parse_txt(html,file_name,path):
 
     #为每一个市场创建出相应的文件夹进行存取
     name=html.xpath("//div[@class='skin_mar mar_list']/text()")[0]
